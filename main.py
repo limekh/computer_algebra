@@ -1,58 +1,51 @@
 
 from montgomery import MontgomeryContext
+from exponentiation import Exponentiation
 
 
 def main():
-    N = 339
-    a = 18
-    b = 512
-    exp = 64
+    base = 7
+    exponent = 13
+    modulus = 19
 
-    ctx = MontgomeryContext(N)
+    print("Исходные данные:")
+    print(f"Основание: {base}")
+    print(f"Показатель: {exponent}")
+    print(f"Модуль: {modulus}")
 
-    print("Параметры Монтгомери:")
-    for name, value in ctx.parameters().items():
-        print(f"{name}: {value}")
+    # 1. Возведение в степень методом Монтгомери
+    montgomery = MontgomeryContext(modulus)
 
-    print("\nПреобразование чисел:")
+    result_mont = montgomery.pow_montgomery(
+        base, exponent, trace=True
+    )
 
-    a_mont = ctx.to_montgomery(a)
-    b_mont = ctx.to_montgomery(b)
+    print("\n=== Метод Монтгомери ===")
+    print("Результат:", result_mont)
+    print("REDC:", montgomery.stats.redc)
+    print("Умножения:", montgomery.stats.multiplications)
+    print("Квадраты:", montgomery.stats.squarings)
 
-    print(f"a = {a} -> {a_mont}")
-    print(f"b = {b} -> {b_mont}")
+    # 2. Бинарный алгоритм слева направо
+    binary = Exponentiation()
 
-    print("\nРедукция REDC:")
+    result_binary = binary.binary_left_to_right(
+        base, exponent, modulus, trace=True
+    )
 
-    result_mont = ctx.multiply(a_mont, b_mont, trace=True)
+    print("\n=== Бинарный алгоритм слева направо ===")
+    print("Результат:", result_binary)
+    print("REDC:", binary.stats.redc)
+    print("Умножения:", binary.stats.multiplications)
+    print("Квадраты:", binary.stats.squarings)
 
-    print("Трассировка:")
-    print(ctx.last_trace)
+    # 3. Проверка результатов
+    expected = pow(base, exponent, modulus)
 
-    result = ctx.from_montgomery(result_mont)
-
-    print(f"\nРезультат: {a} * {b} mod {N} = {result}")
-    print(f"Проверка обычным умножением: {(a * b) % N}")
-
-    print("\nСчётчики операций:")
-    print(f"REDC: {ctx.stats.redc}")
-    print(f"Умножений: {ctx.stats.multiplications}")
-    print(f"Квадратов: {ctx.stats.squarings}\n")
-
-    result = ctx.pow_montgomery(a, exp, trace=True)
-
-    print("Результат:", result)
-    print("Ожидаемый результат:", pow(a, exp, N))
-
-    print("\nТрассировка:")
-
-    for step in ctx.last_power_trace:
-        print(step)
-
-    print("\nСтатистика:")
-    print("REDC:", ctx.stats.redc)
-    print("Умножений:", ctx.stats.multiplications)
-    print("Квадратов:", ctx.stats.squarings)
+    print("\n=== Проверка ===")
+    print("Библиотечный результат:", expected)
+    print("Монтгомери:", result_mont == expected)
+    print("Бинарный:", result_binary == expected)
 
 
 if __name__ == "__main__":
