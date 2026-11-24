@@ -120,3 +120,173 @@ class Exponentiation:
             })
 
         return accumulator
+
+    def q_ary(
+        self,
+        base: int,
+        exponent: int,
+        modulus: int,
+        k: int,
+        trace: bool = False
+    ) -> int:
+        """
+        q-арный алгоритм возведения в степен
+        q = 2^k
+        """
+
+        if not isinstance(base, int) or isinstance(base, bool):
+            raise TypeError("Основание должно быть целым числом")
+
+        if not isinstance(exponent, int) or isinstance(exponent, bool):
+            raise TypeError("Показатель должен быть целым числом")
+
+        if not isinstance(modulus, int) or isinstance(modulus, bool):
+            raise TypeError("Модуль должен быть целым числом")
+
+        if not isinstance(k, int) or isinstance(k, bool):
+            raise TypeError("Параметр k должен быть целым числом")
+
+        if modulus <= 0:
+            raise ValueError("Модуль должен быть положительным")
+
+        if exponent < 0:
+            raise ValueError("Показатель не может быть отрицательным")
+
+        if k < 1:
+            raise ValueError("Параметр k должен быть не меньше 1")
+
+        # Сброс статистики и трассировки
+        self.stats.reset()
+        self.last_trace = []
+
+        self.precomputation_stats = {
+            "squarings": 0,
+            "multiplications": 0,
+            "redc": 0,
+        }
+
+        self.execution_stats = {
+            "squarings": 0,
+            "multiplications": 0,
+            "redc": 0,
+        }
+
+        if modulus == 1:
+            return 0
+
+        if exponent == 0:
+            return 1 % modulus
+
+        # Подготовка
+        q = 1 << k
+        base %= modulus
+
+        # Разложение показателя в системе счисления q
+        digits = []
+        temp = exponent
+
+        while temp > 0:
+            temp, digit = divmod(temp, q)
+            digits.append(digit)
+
+        digits.reverse()
+
+        n = len(digits)
+
+        if trace:
+            self.last_trace.append({
+                "stage": "preparation",
+                "base": base,
+                "exponent": exponent,
+                "k": k,
+                "q": q,
+                "n": n,
+                "digits": digits.copy(),
+                "modulus": modulus,
+            })
+
+        # Предвычисление степеней основания
+        table = [0] * (q + 1)
+
+        table[0] = 1 % modulus
+        table[1] = base
+
+        for j in range(2, q + 1):
+
+            table[j] = (
+                table[j - 1] * base
+            ) % modulus
+
+            self.stats.multiplications += 1
+            self.precomputation_stats["multiplications"] += 1
+
+            if trace:
+                self.last_trace.append({
+                    "stage": "precomputation",
+                    "power": j,
+                    "value": table[j],
+                })
+
+        # Инициализация аккумулятора
+        accumulator = table[digits[0]]
+
+        if trace:
+            self.last_trace.append({
+                "stage": "initialization",
+                "digit": digits[0],
+                "accumulator": accumulator,
+            })
+
+        # Основное вычисление
+        # Обрабатываем оставшиеся цифры слева направо
+        for position in range(1, n):
+
+            digit = digits[position]
+
+            # acc = acc^q
+            # Поскольку q = 2^k, выполняем k квадратов
+            for square_index in range(k):
+
+                accumulator = (
+                    accumulator * accumulator
+                ) % modulus
+
+                self.stats.squarings += 1
+                self.execution_stats["squarings"] += 1
+
+                if trace:
+                    self.last_trace.append({
+                        "stage": "squaring",
+                        "digit_index": position,
+                        "digit": digit,
+                        "square_index": square_index + 1,
+                        "accumulator": accumulator,
+                    })
+
+            # При нулевой цифре умножение на 1 пропускаем
+            if digit != 0:
+
+                accumulator = (
+                    accumulator * table[digit]
+                ) % modulus
+
+                self.stats.multiplications += 1
+                self.execution_stats["multiplications"] += 1
+
+                if trace:
+                    self.last_trace.append({
+                        "stage": "multiplication",
+                        "digit_index": position,
+                        "digit": digit,
+                        "table_value": table[digit],
+                        "accumulator": accumulator,
+                    })
+
+        if trace:
+            self.last_trace.append({
+                "stage": "result",
+                "result": accumulator,
+            })
+
+        return accumulator
+
