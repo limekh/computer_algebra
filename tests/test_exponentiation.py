@@ -222,3 +222,127 @@ def test_q_ary_trace():
 
     assert trace[-1]["stage"] == "result"
 
+
+
+def test_sliding_window_example():
+    algorithm = Exponentiation()
+
+    result = algorithm.sliding_window(
+        base=7,
+        exponent=13,
+        modulus=19,
+        w=3
+    )
+
+    assert result == 7
+    assert result == pow(7, 13, 19)
+
+
+
+def test_sliding_window_random():
+    import random
+
+    rng = random.Random(42)
+    algorithm = Exponentiation()
+
+    moduli = [1, 2, 3, 7, 19, 31, 101, 1009, 65537]
+
+    for modulus in moduli:
+        for w in [1, 2, 3, 4, 5]:
+            for _ in range(30):
+
+                base = rng.randint(-1000, 1000)
+                exponent = rng.randint(0, 1024)
+
+                result = algorithm.sliding_window(
+                    base, exponent, modulus, w
+                )
+
+                assert result == pow(base, exponent, modulus)
+
+
+
+def test_sliding_window_invalid_w():
+    algorithm = Exponentiation()
+
+    for w in [0, -1]:
+        with pytest.raises(ValueError):
+            algorithm.sliding_window(7, 13, 19, w)
+
+    for w in [1.5, True, "3"]:
+        with pytest.raises(TypeError):
+            algorithm.sliding_window(7, 13, 19, w)
+
+
+
+def test_sliding_window_edge_cases():
+    algorithm = Exponentiation()
+
+    # Модуль равен 1
+    assert algorithm.sliding_window(7, 13, 1, 3) == 0
+
+    # Показатель равен 0
+    assert algorithm.sliding_window(7, 0, 19, 3) == 1
+
+    # Основание равно 0
+    assert algorithm.sliding_window(0, 13, 19, 3) == 0
+
+    # Отрицательное основание
+    assert algorithm.sliding_window(-7, 13, 19, 3) == pow(-7, 13, 19)
+
+    # Основание кратно модулю
+    assert algorithm.sliding_window(19, 5, 19, 3) == 0
+
+    # Нулевое основание и нулевой показатель
+    assert algorithm.sliding_window(0, 0, 19, 3) == 1
+
+
+
+def test_sliding_window_stats():
+    algorithm = Exponentiation()
+
+    result = algorithm.sliding_window(
+        base=7,
+        exponent=int("1101011", 2),
+        modulus=101,
+        w=3
+    )
+
+    assert result == pow(7, int("1101011", 2), 101)
+
+    assert algorithm.precomputation_stats["squarings"] == 1
+    assert algorithm.precomputation_stats["multiplications"] == 3
+
+    assert algorithm.execution_stats["squarings"] == 5
+    assert algorithm.execution_stats["multiplications"] == 2
+
+    assert algorithm.stats.squarings == 6
+    assert algorithm.stats.multiplications == 5
+    assert algorithm.stats.redc == 0
+
+
+
+def test_sliding_window_trace():
+    algorithm = Exponentiation()
+
+    result = algorithm.sliding_window(
+        7, 13, 19, 3, trace=True
+    )
+
+    assert result == 7
+
+    trace = algorithm.last_trace
+
+    assert trace[0]["stage"] == "preparation"
+
+    assert any(
+        step["stage"] == "precomputation"
+        for step in trace
+    )
+
+    assert any(
+        step["stage"] == "window"
+        for step in trace
+    )
+
+    assert trace[-1]["stage"] == "result"

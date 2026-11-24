@@ -73,7 +73,7 @@ class Exponentiation:
                 "modulus": modulus,
             })
 
-        # 2. Инициализация аккумулятора
+        # Инициализация аккумулятора
         accumulator = base
 
         if trace:
@@ -82,7 +82,7 @@ class Exponentiation:
                 "accumulator": accumulator,
             })
 
-        # 3. Обработка битов слева направо
+        # Обработка битов слева направо
         for position in range(1, len(binary_exponent)):
 
             bit = int(binary_exponent[position])
@@ -290,3 +290,223 @@ class Exponentiation:
 
         return accumulator
 
+    def sliding_window(
+        self,
+        base: int,
+        exponent: int,
+        modulus: int,
+        w: int,
+        trace: bool = False
+    ) -> int:
+        """
+        Возведение в степень методом скользящего окна
+        w - размер окна
+        """
+
+        if not isinstance(base, int) or isinstance(base, bool):
+            raise TypeError("Основание должно быть целым числом")
+
+        if not isinstance(exponent, int) or isinstance(exponent, bool):
+            raise TypeError("Показатель должен быть целым числом")
+
+        if not isinstance(modulus, int) or isinstance(modulus, bool):
+            raise TypeError("Модуль должен быть целым числом")
+
+        if not isinstance(w, int) or isinstance(w, bool):
+            raise TypeError("Размер окна должен быть целым числом")
+
+        if modulus <= 0:
+            raise ValueError("Модуль должен быть положительным")
+
+        if exponent < 0:
+            raise ValueError("Показатель не может быть отрицательным")
+
+        if w < 1:
+            raise ValueError("Размер окна должен быть не меньше 1")
+
+        # Сброс статистики
+        self.stats.reset()
+        self.last_trace = []
+
+        self.precomputation_stats = {
+            "squarings": 0,
+            "multiplications": 0,
+            "redc": 0,
+        }
+
+        self.execution_stats = {
+            "squarings": 0,
+            "multiplications": 0,
+            "redc": 0,
+        }
+
+        # Обработка особых случаев
+        if modulus == 1:
+            return 0
+
+        if exponent == 0:
+            return 1 % modulus
+
+        # Подготовка
+        base %= modulus
+
+        binary_exponent = bin(exponent)[2:]
+
+        if trace:
+            self.last_trace.append({
+                "stage": "preparation",
+                "base": base,
+                "exponent": exponent,
+                "binary_exponent": binary_exponent,
+                "window_size": w,
+                "modulus": modulus,
+            })
+
+        # Предвычисление нечётных степеней
+        # table[1] = a
+        # table[3] = a^3
+        # table[5] = a^5
+        table = {
+            1: base
+        }
+
+        if w > 1:
+
+            base_squared = (base * base) % modulus
+
+            self.stats.squarings += 1
+            self.precomputation_stats["squarings"] += 1
+
+            if trace:
+                self.last_trace.append({
+                    "stage": "precomputation_square",
+                    "power": 2,
+                    "value": base_squared,
+                })
+
+            for odd in range(3, 2 ** w, 2):
+
+                table[odd] = (
+                    table[odd - 2] * base_squared
+                ) % modulus
+
+                self.stats.multiplications += 1
+                self.precomputation_stats["multiplications"] += 1
+
+                if trace:
+                    self.last_trace.append({
+                        "stage": "precomputation",
+                        "power": odd,
+                        "value": table[odd],
+                    })
+
+        # Основное вычисление
+        accumulator = 1
+        i = 0
+        binary_length = len(binary_exponent)
+
+        while i < binary_length:
+
+            # Если текущий бит равен 0,
+            # то выполняем одно возведение в квадрат
+
+            if binary_exponent[i] == "0":
+
+                accumulator = (
+                    accumulator * accumulator
+                ) % modulus
+
+                self.stats.squarings += 1
+                self.execution_stats["squarings"] += 1
+
+                if trace:
+                    self.last_trace.append({
+                        "stage": "zero_bit",
+                        "bit_index": i,
+                        "accumulator": accumulator,
+                    })
+
+                i += 1
+                continue
+
+            # Формирование окна
+            j = min(i + w, binary_length)
+
+            while binary_exponent[j - 1] == "0":
+                j -= 1
+
+            window = binary_exponent[i:j]
+            window_length = len(window)
+            window_value = int(window, 2)
+
+            if trace:
+                self.last_trace.append({
+                    "stage": "window",
+                    "start": i,
+                    "end": j,
+                    "bits": window,
+                    "value": window_value,
+                    "length": window_length,
+                })
+
+            # Первое окно
+            # Инициализация аккумулятора
+            if i == 0:
+
+                accumulator = table[window_value]
+
+                if trace:
+                    self.last_trace.append({
+                        "stage": "initialization",
+                        "window": window,
+                        "accumulator": accumulator,
+                    })
+
+                i = j
+                continue
+
+            # Возведение аккумулятора
+            # в квадрат window_length раз
+            for square_index in range(window_length):
+
+                accumulator = (
+                    accumulator * accumulator
+                ) % modulus
+
+                self.stats.squarings += 1
+                self.execution_stats["squarings"] += 1
+
+                if trace:
+                    self.last_trace.append({
+                        "stage": "squaring",
+                        "window": window,
+                        "square_index": square_index + 1,
+                        "accumulator": accumulator,
+                    })
+
+            # Умножение на предвычисленную степень
+            accumulator = (
+                accumulator * table[window_value]
+            ) % modulus
+
+            self.stats.multiplications += 1
+            self.execution_stats["multiplications"] += 1
+
+            if trace:
+                self.last_trace.append({
+                    "stage": "multiplication",
+                    "window": window,
+                    "power": window_value,
+                    "accumulator": accumulator,
+                })
+
+            # Переход к следующему биту
+            i = j
+
+        if trace:
+            self.last_trace.append({
+                "stage": "result",
+                "result": accumulator,
+            })
+
+        return accumulator

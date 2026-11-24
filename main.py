@@ -1,51 +1,125 @@
-
 from montgomery import MontgomeryContext
 from exponentiation import Exponentiation
 
 
+def print_statistics(algorithm, name):
+    print(f"\n{name}")
+    print("Результат:", algorithm.result)
+    print("Квадраты:", algorithm.stats.squarings)
+    print("Умножения:", algorithm.stats.multiplications)
+    print("REDC:", algorithm.stats.redc)
+
+
+def print_exponentiation_statistics(algorithm, name):
+    print(f"\n{name}")
+    print("Результат:", algorithm.result)
+
+    print("Общая статистика:")
+    print("Квадраты:", algorithm.stats.squarings)
+    print("Умножения:", algorithm.stats.multiplications)
+    print("REDC:", algorithm.stats.redc)
+
+    print("Предвычисления:")
+    print("Квадраты:",
+          algorithm.precomputation_stats["squarings"])
+    print("Умножения:",
+          algorithm.precomputation_stats["multiplications"])
+
+    print("Основное вычисление:")
+    print("Квадраты:",
+          algorithm.execution_stats["squarings"])
+    print("Умножения:",
+          algorithm.execution_stats["multiplications"])
+
+
 def main():
-    base = 7
-    exponent = 13
-    modulus = 19
+    base = 18
+    exponent = 64
+    modulus = 339
 
     print("Исходные данные:")
     print(f"Основание: {base}")
     print(f"Показатель: {exponent}")
     print(f"Модуль: {modulus}")
 
-    # 1. Возведение в степень методом Монтгомери
+    # Эталонный результат
+    expected = pow(base, exponent, modulus)
+
+    # Метод Монтгомери
     montgomery = MontgomeryContext(modulus)
 
     result_mont = montgomery.pow_montgomery(
         base, exponent, trace=True
     )
 
-    print("\n=== Метод Монтгомери ===")
+    print("\nМетод Монтгомери")
     print("Результат:", result_mont)
-    print("REDC:", montgomery.stats.redc)
-    print("Умножения:", montgomery.stats.multiplications)
     print("Квадраты:", montgomery.stats.squarings)
+    print("Умножения:", montgomery.stats.multiplications)
+    print("REDC:", montgomery.stats.redc)
 
-    # 2. Бинарный алгоритм слева направо
+    # Бинарный алгоритм слева направо
     binary = Exponentiation()
 
     result_binary = binary.binary_left_to_right(
         base, exponent, modulus, trace=True
     )
 
-    print("\n=== Бинарный алгоритм слева направо ===")
+    print("\nБинарный алгоритм слева направо")
     print("Результат:", result_binary)
-    print("REDC:", binary.stats.redc)
-    print("Умножения:", binary.stats.multiplications)
     print("Квадраты:", binary.stats.squarings)
+    print("Умножения:", binary.stats.multiplications)
+    print("REDC:", binary.stats.redc)
 
-    # 3. Проверка результатов
-    expected = pow(base, exponent, modulus)
+    # q-арный алгоритм
+    q_ary = Exponentiation()
 
-    print("\n=== Проверка ===")
+    k = 2
+
+    result_q_ary = q_ary.q_ary(
+        base, exponent, modulus, k, trace=True
+    )
+
+    q_ary.result = result_q_ary
+
+    print_exponentiation_statistics(
+        q_ary,
+        f"q-арный алгоритм (q = {2 ** k})"
+    )
+
+    # Метод скользящего окна
+    window_results = {}
+
+    for w in [2, 3, 4]:
+
+        sliding = Exponentiation()
+
+        result_sliding = sliding.sliding_window(
+            base, exponent, modulus, w, trace=True
+        )
+
+        sliding.result = result_sliding
+        window_results[w] = result_sliding
+
+        print_exponentiation_statistics(
+            sliding,
+            f"Скользящее окно (w = {w})"
+        )
+
+    # Сравнение результатов
+    print("\nПроверка результатов")
+
     print("Библиотечный результат:", expected)
-    print("Монтгомери:", result_mont == expected)
+
+    print("Монтгери:", result_mont == expected)
     print("Бинарный:", result_binary == expected)
+    print("q-арный:", result_q_ary == expected)
+
+    for w, result in window_results.items():
+        print(
+            f"Скользящее окно (w={w}):",
+            result == expected
+        )
 
 
 if __name__ == "__main__":
