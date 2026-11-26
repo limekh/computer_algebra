@@ -1,5 +1,6 @@
-from montgomery import MontgomeryContext
+from cache import PrecomputationCache
 from exponentiation import Exponentiation
+from montgomery import MontgomeryContext
 
 
 def print_statistics(algorithm, name):
@@ -120,6 +121,53 @@ def main():
             f"Скользящее окно (w={w}):",
             result == expected
         )
+
+    # Демонстрация кэширования
+    print("\n\nПроверка кэширования")
+
+    cache = PrecomputationCache()
+    cached_algorithm = Exponentiation()
+
+    # Первый запрос
+    result1 = cached_algorithm.q_ary(
+        7, 13, 19, 2, cache=cache
+    )
+
+    print("\nПервый запрос q-арного метода:")
+    print("Результат:", result1)
+    print("Попадания:", cache.cache_hits)
+    print("Промахи:", cache.cache_misses)
+    print(
+        "Предвычисления:",
+        cached_algorithm.precomputation_stats
+    )
+
+    # Второй запрос с теми же параметрами,
+    # но другим показателем
+    result2 = cached_algorithm.q_ary(
+        7, 25, 19, 2, cache=cache
+    )
+
+    print("\nВторой запрос q-арного метода:")
+    print("Результат:", result2)
+    print("Попадания:", cache.cache_hits)
+    print("Промахи:", cache.cache_misses)
+    print(
+        "Предвычисления:",
+        cached_algorithm.precomputation_stats
+    )
+
+    # Третий запрос с другим основанием
+    result3 = cached_algorithm.q_ary(
+        5, 13, 19, 2, cache=cache
+    )
+
+    print("\nТретий запрос с другим основанием:")
+    print("Результат:", result3)
+    print("Попадания:", cache.cache_hits)
+    print("Промахи:", cache.cache_misses)
+
+    print("\nРазмер кэша:", cache.size)
 
 
 if __name__ == "__main__":

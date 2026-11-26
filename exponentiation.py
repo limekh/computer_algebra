@@ -1,3 +1,4 @@
+from cache import PrecomputationCache
 from dataclasses import dataclass
 
 
@@ -59,7 +60,7 @@ class Exponentiation:
         if exponent == 0:
             return 1 % modulus
 
-        # 1. Подготовка
+        # Подготовка
         base %= modulus
 
         binary_exponent = bin(exponent)[2:]
@@ -127,7 +128,8 @@ class Exponentiation:
         exponent: int,
         modulus: int,
         k: int,
-        trace: bool = False
+        trace: bool = False,
+        cache: PrecomputationCache | None = None
     ) -> int:
         """
         q-арный алгоритм возведения в степен
@@ -206,26 +208,58 @@ class Exponentiation:
             })
 
         # Предвычисление степеней основания
-        table = [0] * (q + 1)
+        # Или получение из кэша
+        cache_key = (
+            "q_ary",
+            base,
+            modulus,
+            k,
+            "standard"
+        )
 
-        table[0] = 1 % modulus
-        table[1] = base
+        table = cache.get(cache_key) if cache is not None else None
 
-        for j in range(2, q + 1):
-
-            table[j] = (
-                table[j - 1] * base
-            ) % modulus
-
-            self.stats.multiplications += 1
-            self.precomputation_stats["multiplications"] += 1
+        if table is not None:
 
             if trace:
                 self.last_trace.append({
-                    "stage": "precomputation",
-                    "power": j,
-                    "value": table[j],
+                    "stage": "cache_hit",
+                    "algorithm": "q_ary",
+                    "cache_key": cache_key,
                 })
+
+        else:
+
+            if trace:
+                self.last_trace.append({
+                    "stage": "cache_miss",
+                    "algorithm": "q_ary",
+                    "cache_key": cache_key,
+                })
+
+            table = [0] * (q + 1)
+
+            table[0] = 1 % modulus
+            table[1] = base
+
+            for j in range(2, q + 1):
+
+                table[j] = (
+                    table[j - 1] * base
+                ) % modulus
+
+                self.stats.multiplications += 1
+                self.precomputation_stats["multiplications"] += 1
+
+                if trace:
+                    self.last_trace.append({
+                        "stage": "precomputation",
+                        "power": j,
+                        "value": table[j],
+                    })
+
+            if cache is not None:
+                cache.put(cache_key, table)
 
         # Инициализация аккумулятора
         accumulator = table[digits[0]]
@@ -296,7 +330,8 @@ class Exponentiation:
         exponent: int,
         modulus: int,
         w: int,
-        trace: bool = False
+        trace: bool = False,
+        cache: PrecomputationCache | None = None
     ) -> int:
         """
         Возведение в степень методом скользящего окна
@@ -366,39 +401,71 @@ class Exponentiation:
         # table[1] = a
         # table[3] = a^3
         # table[5] = a^5
-        table = {
-            1: base
-        }
+        cache_key = (
+            "sliding_window",
+            base,
+            modulus,
+            w,
+            "standard"
+        )
 
-        if w > 1:
+        table = cache.get(cache_key) if cache is not None else None
 
-            base_squared = (base * base) % modulus
-
-            self.stats.squarings += 1
-            self.precomputation_stats["squarings"] += 1
+        if table is not None:
 
             if trace:
                 self.last_trace.append({
-                    "stage": "precomputation_square",
-                    "power": 2,
-                    "value": base_squared,
+                    "stage": "cache_hit",
+                    "algorithm": "sliding_window",
+                    "cache_key": cache_key,
                 })
 
-            for odd in range(3, 2 ** w, 2):
+        else:
 
-                table[odd] = (
-                    table[odd - 2] * base_squared
-                ) % modulus
+            if trace:
+                self.last_trace.append({
+                    "stage": "cache_miss",
+                    "algorithm": "sliding_window",
+                    "cache_key": cache_key,
+                })
 
-                self.stats.multiplications += 1
-                self.precomputation_stats["multiplications"] += 1
+            table = {
+                1: base
+            }
+
+            if w > 1:
+
+                base_squared = (base * base) % modulus
+
+                self.stats.squarings += 1
+                self.precomputation_stats["squarings"] += 1
 
                 if trace:
                     self.last_trace.append({
-                        "stage": "precomputation",
-                        "power": odd,
-                        "value": table[odd],
+                        "stage": "precomputation_square",
+                        "power": 2,
+                        "value": base_squared,
                     })
+
+                for odd in range(3, 2 ** w, 2):
+
+                    table[odd] = (
+                        table[odd - 2] * base_squared
+                    ) % modulus
+
+                    self.stats.multiplications += 1
+                    self.precomputation_stats["multiplications"] += 1
+
+                    if trace:
+                        self.last_trace.append({
+                            "stage": "precomputation",
+                            "power": odd,
+                            "value": table[odd],
+                        })
+
+            if cache is not None:
+                cache.put(cache_key, table)
+
 
         # Основное вычисление
         accumulator = 1
